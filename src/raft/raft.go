@@ -20,21 +20,17 @@ package raft
 import (
 	"bytes"
 	"encoding/gob"
-	"labrpc"
 	"math"
 	"math/rand"
+	"raft6824/src/labrpc"
 	"sort"
 	"sync"
 	"time"
 )
 
-
-
-//
 // as each Raft peer becomes aware that successive log entries are
 // committed, the peer should send an ApplyMsg to the service (or
 // tester) on the same server, via the applyCh passed to Make().
-//
 type ApplyMsg struct {
 	Index       int
 	Command     interface{}
@@ -42,15 +38,13 @@ type ApplyMsg struct {
 	Snapshot    []byte // ignore for lab2; only used in lab3
 }
 
-
 const (
-	Follower   string = "follower"
-	Candidate         = "candidate"
-	Leader            = "leader"
+	Follower  string = "follower"
+	Candidate        = "candidate"
+	Leader           = "leader"
 )
-//
+
 // A Go object implementing a single Raft peer.
-//
 type Raft struct {
 	mu        sync.Mutex          // Lock to protect shared access to this peer's state
 	peers     []*labrpc.ClientEnd // RPC end points of all peers
@@ -62,24 +56,24 @@ type Raft struct {
 	// state a Raft server must maintain.
 
 	// persistent state on all servers
-	currentTerm      int
-	votedFor         int
-	log 		     []Entry
+	currentTerm int
+	votedFor    int
+	log         []Entry
 	// volatile state on all servers
-	commitIndex      int
-	lastApplied      int
+	commitIndex int
+	lastApplied int
 	// volatile state on leaders
-	nextIndex        []int
-	matchIndex		 []int
+	nextIndex  []int
+	matchIndex []int
 	// some other self-added states
-	state            string
-	electionTimeout  int
-	applyCh          chan ApplyMsg
-	grantVoteCh      chan bool
-	heartBeatCh      chan bool
-	leaderCh         chan bool
-	totalVotes       int
-	timer            *time.Timer
+	state           string
+	electionTimeout int
+	applyCh         chan ApplyMsg
+	grantVoteCh     chan bool
+	heartBeatCh     chan bool
+	leaderCh        chan bool
+	totalVotes      int
+	timer           *time.Timer
 }
 
 // return currentTerm and whether this server
@@ -98,11 +92,9 @@ func (rf *Raft) GetState() (int, bool) {
 	return term, isleader
 }
 
-//
 // save Raft's persistent state to stable storage,
 // where it can later be retrieved after a crash and restart.
 // see paper's Figure 2 for a description of what should be persistent.
-//
 func (rf *Raft) persist() {
 	// Your code here (2C).
 	// Example:
@@ -122,9 +114,7 @@ func (rf *Raft) persist() {
 	rf.persister.SaveRaftState(data)
 }
 
-//
 // restore previously persisted state.
-//
 func (rf *Raft) readPersist(data []byte) {
 	// Your code here (2C).
 	// Example:
@@ -143,10 +133,8 @@ func (rf *Raft) readPersist(data []byte) {
 	}
 }
 
-//
 // example RequestVote RPC arguments structure.
 // field names must start with capital letters!
-//
 type RequestVoteArgs struct {
 	// Your data here (2A, 2B).
 	Term         int
@@ -155,19 +143,15 @@ type RequestVoteArgs struct {
 	LastLogTerm  int
 }
 
-//
 // example RequestVote RPC reply structure.
 // field names must start with capital letters!
-//
 type RequestVoteReply struct {
 	// Your data here (2A).
-	Term         int
-	VoteGranted  bool
+	Term        int
+	VoteGranted bool
 }
 
-//
 // example RequestVote RPC handler.
-//
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 	rf.mu.Lock()
@@ -265,7 +249,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	DPrintf("======= server %d got RequestVote from candidate %d, args: %+v, current log: %v, reply: %+v =======\n", rf.me, args.CandidateId, args, rf.log, reply)
 }
 
-
 type AppendEntriesArgs struct {
 	Term         int
 	LeaderId     int
@@ -276,8 +259,8 @@ type AppendEntriesArgs struct {
 }
 
 type AppendEntriesReply struct {
-	Term          int
-	Success       bool
+	Term    int
+	Success bool
 	// optimization: accelerated log backtracking
 	ConflictTerm  int
 	ConflictIndex int
@@ -301,8 +284,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			originLogEntries := rf.log
 			lastNewEntry := 0
 			if args.PrevLogIndex+len(args.Entries) < len(originLogEntries) {
-				lastNewEntry = args.PrevLogIndex+len(args.Entries)
-				for i:=0; i<len(args.Entries); i++ {
+				lastNewEntry = args.PrevLogIndex + len(args.Entries)
+				for i := 0; i < len(args.Entries); i++ {
 					if args.Entries[i] != originLogEntries[args.PrevLogIndex+i] {
 						rf.log = append(rf.log[:args.PrevLogIndex+i], args.Entries[i:]...)
 						lastNewEntry = len(rf.log)
@@ -337,7 +320,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 				reply.Term = rf.currentTerm
 				reply.Success = false
 				reply.ConflictTerm = prevLogTerm
-				for i:=0; i<len(rf.log); i++ {
+				for i := 0; i < len(rf.log); i++ {
 					if rf.log[i].Term == prevLogTerm {
 						reply.ConflictIndex = i + 1
 						break
@@ -350,8 +333,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 				lastNewEntry := 0
 				// 必须要有这部分判断, 否则有可能使得当前最新的log被旧的log entries所替代
 				if args.PrevLogIndex+len(args.Entries) < len(originLogEntries) {
-					lastNewEntry = args.PrevLogIndex+len(args.Entries)
-					for i:=0; i<len(args.Entries); i++ {
+					lastNewEntry = args.PrevLogIndex + len(args.Entries)
+					for i := 0; i < len(args.Entries); i++ {
 						if args.Entries[i] != originLogEntries[args.PrevLogIndex+i] {
 							rf.log = append(rf.log[:args.PrevLogIndex+i], args.Entries[i:]...)
 							lastNewEntry = len(rf.log)
@@ -373,7 +356,6 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	DPrintf("======= server %d got AppendEntries from leader %d, args: %+v, current log: %v, reply: %+v =======\n", rf.me, args.LeaderId, args, rf.log, reply)
 }
 
-//
 // example code to send a RequestVote RPC to a server.
 // server is the index of the target server in rf.peers[].
 // expects RPC arguments in args.
@@ -401,7 +383,6 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 // capitalized all field names in structs passed over RPC, and
 // that the caller passes the address of the reply struct with &, not
 // the struct itself.
-//
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
 	return ok
@@ -412,7 +393,6 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 	return ok
 }
 
-//
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
 // server isn't the leader, returns false. otherwise start the
@@ -424,7 +404,6 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 // if it's ever committed. the second return value is the current
 // term. the third return value is true if this server believes it is
 // the leader.
-//
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	rf.mu.Lock()
 	index := -1
@@ -442,22 +421,19 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	return index, term, isLeader
 }
 
-//
 // the tester calls Kill() when a Raft instance won't
 // be needed again. you are not required to do anything
 // in Kill(), but it might be convenient to (for example)
 // turn off debug output from this instance.
-//
 func (rf *Raft) Kill() {
 	// Your code here, if desired.
 }
 
 type Entry struct {
-	Term        int
-	Command     interface{}
+	Term    int
+	Command interface{}
 }
 
-//
 // the service or tester wants to create a Raft server. the ports
 // of all the Raft servers (including this one) are in peers[]. this
 // server's port is peers[me]. all the servers' peers[] arrays
@@ -467,7 +443,6 @@ type Entry struct {
 // tester or service expects Raft to send ApplyMsg messages.
 // Make() must return quickly, so it should start goroutines
 // for any long-running work.
-//
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
@@ -542,7 +517,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 					rf.mu.Unlock()
 				}
 			}
-			
+
 		}
 	}()
 
@@ -551,7 +526,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 func GenerateElectionTimeout(min, max int) int {
 	rad := rand.New(rand.NewSource(time.Now().UnixNano()))
-	randNum := rad.Intn(max - min) + min
+	randNum := rad.Intn(max-min) + min
 	return randNum
 }
 
@@ -577,7 +552,7 @@ func (rf *Raft) startRequestVote() {
 	}
 	nLeader := 0
 	rf.mu.Unlock()
-	for i := 0; i < len(rf.peers); i ++ {
+	for i := 0; i < len(rf.peers); i++ {
 		go func(ii int) {
 			if ii == rf.me {
 				return
@@ -600,9 +575,9 @@ func (rf *Raft) startRequestVote() {
 				}
 
 				if reply.VoteGranted {
-					rf.totalVotes ++
+					rf.totalVotes++
 					if nLeader == 0 && rf.totalVotes > len(rf.peers)/2 && rf.state == Candidate {
-						nLeader ++
+						nLeader++
 						rf.convertToLeader()
 						// 之前一个找了好久的bug: setLeaderCh里没有启一个新的goroutine, 可能导致阻塞, 进而造成死锁
 						rf.setLeaderCh()
@@ -627,7 +602,7 @@ func (rf *Raft) startAppendEntries() {
 		}
 		DPrintf("Leader %d: start sending AppendEntries, current term: %d\n", rf.me, rf.currentTerm)
 		rf.mu.Unlock()
-		for i := 0; i < len(rf.peers); i ++ {
+		for i := 0; i < len(rf.peers); i++ {
 			go func(ii int) {
 				if ii == rf.me {
 					return
@@ -639,18 +614,18 @@ func (rf *Raft) startAppendEntries() {
 						rf.mu.Unlock()
 						return
 					}
-					prevLogIndex := rf.nextIndex[ii]-1
+					prevLogIndex := rf.nextIndex[ii] - 1
 					prevLogTerm := 0
 					if prevLogIndex > 0 {
 						prevLogTerm = rf.log[prevLogIndex-1].Term
 					}
 					entries := append([]Entry{}, rf.log[rf.nextIndex[ii]-1:]...)
 					args := AppendEntriesArgs{
-						Term: rf.currentTerm,
-						LeaderId: rf.me,
+						Term:         rf.currentTerm,
+						LeaderId:     rf.me,
 						PrevLogIndex: prevLogIndex,
-						PrevLogTerm: prevLogTerm,
-						Entries: entries,
+						PrevLogTerm:  prevLogTerm,
+						Entries:      entries,
 						LeaderCommit: rf.commitIndex,
 					}
 					reply := AppendEntriesReply{}
@@ -689,7 +664,7 @@ func (rf *Raft) startAppendEntries() {
 							sort.Ints(copyMatchIndex)
 							N := copyMatchIndex[len(rf.peers)/2]
 							if N > rf.commitIndex && rf.log[N-1].Term == rf.currentTerm {
-								rf.commitIndex =  N
+								rf.commitIndex = N
 							}
 							DPrintf("Leader %d: start applying logs, lastApplied: %d, commitIndex: %d\n", rf.me, rf.lastApplied, rf.commitIndex)
 							rf.startApplyLogs()
@@ -698,7 +673,7 @@ func (rf *Raft) startAppendEntries() {
 						} else {
 							// 优化逻辑
 							hasTermEuqalConflictTerm := false
-							for i:=0; i<len(rf.log); i++ {
+							for i := 0; i < len(rf.log); i++ {
 								if rf.log[i].Term == reply.ConflictTerm {
 									hasTermEuqalConflictTerm = true
 								}
@@ -735,8 +710,8 @@ func (rf *Raft) startAppendEntries() {
 
 func (rf *Raft) startApplyLogs() {
 	// 原先写的是rf.lastApplied = len(rf.log)会很有问题, 错误地认为每次提交都会把所有日志提交完, 其实可能只提交一部分
-	for rf.lastApplied < rf.commitIndex{
-		rf.lastApplied ++
+	for rf.lastApplied < rf.commitIndex {
+		rf.lastApplied++
 		msg := ApplyMsg{}
 		msg.Index = rf.lastApplied
 		msg.Command = rf.log[rf.lastApplied-1].Command
@@ -754,7 +729,7 @@ func (rf *Raft) convertToFollower(term int, voteFor int) {
 
 func (rf *Raft) convertToCandidate() {
 	rf.state = Candidate
-	rf.currentTerm ++
+	rf.currentTerm++
 	rf.votedFor = rf.me
 	rf.totalVotes = 1
 	rf.electionTimeout = GenerateElectionTimeout(200, 400)
@@ -766,7 +741,7 @@ func (rf *Raft) convertToLeader() {
 	rf.state = Leader
 	rf.nextIndex = make([]int, len(rf.peers))
 	rf.matchIndex = make([]int, len(rf.peers))
-	for i:=0; i<len(rf.peers); i++ {
+	for i := 0; i < len(rf.peers); i++ {
 		rf.nextIndex[i] = len(rf.log) + 1
 		rf.matchIndex[i] = 0
 	}
